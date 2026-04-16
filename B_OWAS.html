@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OWAS 기본 분석</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 모든 텍스트에 Inter 폰트 적용 */
+        body {
+            font-family: 'Inter', sans-serif;
+            padding: 2px;
+            /* 전체 페이지 상단 여백 최소화 */
+        }
+
+        /* OWAS 위험 등급별 색상 정의 (OWAS.html에서 가져옴) */
+        .ac1 {
+            color: green;
+        }
+
+        .ac2 {
+            color: orange;
+        }
+
+        .ac3 {
+            color: red;
+        }
+
+        .ac4 {
+            color: darkred;
+            font-weight: bold;
+        }
+
+        /* 이미지 컨테이너: 내부 요소를 세로로 정렬하고, 설명 텍스트는 위, 이미지는 아래로 정렬 */
+        .image-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100px;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            cursor: pointer;
+            padding: 0;
+            background-color: #fff;
+        }
+
+        /* 선택된 이미지에 시각적 피드백 제공 */
+        .selected-image {
+            border: 3px solid #6366F1;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.6);
+        }
+
+        /* 이미지 자체의 스타일 */
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* 선택된 항목의 설명을 표시할 영역 스타일 */
+        .selected-description-display {
+            font-size: 0.9rem;
+            color: #374151;
+            text-align: center;
+            margin-top: 0.25rem;
+            min-height: 4.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 0.5rem;
+            background-color: #F3F4F6;
+            border-radius: 0.25rem;
+            border: 1px solid #E5E7EB;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-1">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-6xl">
+        <h1 class="text-4xl font-bold text-black-800 mb-2 text-center">Basic OWAS 작업자세 평가</h1>
+        <h1 class="text-1.5xl text-red-500 mb-4">※ 작업자의 신체부위별 자세와 무게(하중, 부하)를 선택하세요. </h1>
+
+        <div id="imageGalleryContainer" class="w-full">
+        </div>
+
+        <div id="owasResultDisplay"
+            class="result-display mt-4 p-6 bg-blue-50 border border-blue-200 rounded-lg shadow-inner"
+            style="display: none;">
+            <h2 class="text-3xl font-bold text-blue-800 mb-4 text-center">OWAS 평가 결과</h2>
+            <p class="text-lg text-gray-700 mb-2"><strong>OWAS 자세코드:</strong> <span id="owasCodeValue"
+                    class="font-extrabold text-xl"></span></p>
+            <p class="text-lg text-gray-700 mb-2"><strong>위험수준 (Action Category):</strong> <span
+                    id="actionCategoryValue" class="font-extrabold text-xl"></span></p>
+            <p class="text-lg text-gray-700"><strong>조치 사항:</strong> <span id="actionMessageValue"
+                    class="font-extrabold text-xl"></span></p>
+        </div>
+    </div>
+
+    <script>
+        // OWAS.html에서 가져온 OWAS Action Category lookup 테이블
+        // 이 테이블은 OWAS 코드(4자리 숫자 문자열)를 위험 등급(category)과 조치 메시지(message)에 매핑합니다.
+        const owasActionCategories = {
+            "1111": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1112": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1113": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1121": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1122": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1123": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1131": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1132": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1133": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1141": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1142": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1143": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1151": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1152": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1153": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1161": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1162": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1163": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1171": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1172": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1173": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+
+            "1211": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1212": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1213": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1221": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1222": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1223": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1231": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1232": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1233": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1241": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1242": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1243": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1251": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1252": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1253": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1261": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1262": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1263": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1271": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1272": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1273": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+
+            "1311": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1312": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1313": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1321": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1322": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1323": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1331": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1332": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1333": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1341": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1342": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1343": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "1351": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1352": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "1353": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "1361": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1362": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1363": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1371": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1372": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "1373": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+
+            "2111": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2112": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2113": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2121": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2122": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2123": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2131": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2132": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2133": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2141": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2142": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2143": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2151": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2152": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2153": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2161": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2162": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2163": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2171": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2172": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2173": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+
+            "2211": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2212": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2213": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2221": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2222": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2223": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2231": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2232": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2233": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2241": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2242": { category: 4, message: "즉시 조치가 필요함!" },
+            "2243": { category: 4, message: "즉시 조치가 필요함!" },
+            "2251": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2252": { category: 4, message: "즉시 조치가 필요함!" },
+            "2253": { category: 4, message: "즉시 조치가 필요함!" },
+            "2261": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2262": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2263": { category: 4, message: "즉시 조치가 필요함!" },
+            "2271": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2272": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2273": { category: 4, message: "즉시 조치가 필요함!" },
+
+            "2311": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2312": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2313": { category: 4, message: "즉시 조치가 필요함!" },
+            "2321": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2322": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2323": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2331": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2332": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2333": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2341": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2342": { category: 4, message: "즉시 조치가 필요함!" },
+            "2343": { category: 4, message: "즉시 조치가 필요함!" },
+            "2351": { category: 4, message: "즉시 조치가 필요함!" },
+            "2352": { category: 4, message: "즉시 조치가 필요함!" },
+            "2353": { category: 4, message: "즉시 조치가 필요함!" },
+            "2361": { category: 4, message: "즉시 조치가 필요함!" },
+            "2362": { category: 4, message: "즉시 조치가 필요함!" },
+            "2363": { category: 4, message: "즉시 조치가 필요함!" },
+            "2371": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "2372": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "2373": { category: 4, message: "즉시 조치가 필요함!" },
+
+            "3111": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3112": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3113": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3121": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3122": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3123": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3131": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3132": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3133": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "3141": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3142": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3143": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3151": { category: 4, message: "즉시 조치가 필요함!" },
+            "3152": { category: 4, message: "즉시 조치가 필요함!" },
+            "3153": { category: 4, message: "즉시 조치가 필요함!" },
+            "3161": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3162": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3163": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3171": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3172": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3173": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+
+            "3211": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "3212": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "3213": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3221": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3222": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3223": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3231": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3232": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3233": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "3241": { category: 4, message: "즉시 조치가 필요함!" },
+            "3242": { category: 4, message: "즉시 조치가 필요함!" },
+            "3243": { category: 4, message: "즉시 조치가 필요함!" },
+            "3251": { category: 4, message: "즉시 조치가 필요함!" },
+            "3252": { category: 4, message: "즉시 조치가 필요함!" },
+            "3253": { category: 4, message: "즉시 조치가 필요함!" },
+            "3261": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3262": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3263": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3271": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3272": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3273": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+
+            "3311": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "3312": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "3313": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3321": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3322": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3323": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3331": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "3332": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3333": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "3341": { category: 4, message: "즉시 조치가 필요함!" },
+            "3342": { category: 4, message: "즉시 조치가 필요함!" },
+            "3343": { category: 4, message: "즉시 조치가 필요함!" },
+            "3351": { category: 4, message: "즉시 조치가 필요함!" },
+            "3352": { category: 4, message: "즉시 조치가 필요함!" },
+            "3353": { category: 4, message: "즉시 조치가 필요함!" },
+            "3361": { category: 4, message: "즉시 조치가 필요함!" },
+            "3362": { category: 4, message: "즉시 조치가 필요함!" },
+            "3363": { category: 4, message: "즉시 조치가 필요함!" },
+            "3371": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3372": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+            "3373": { category: 1, message: "조치가 필요하지 않음 (자세는 정상적임)." },
+
+
+            "4111": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4112": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4113": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4121": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4122": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4123": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4131": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4132": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4133": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4141": { category: 4, message: "즉시 조치가 필요함!" },
+            "4142": { category: 4, message: "즉시 조치가 필요함!" },
+            "4143": { category: 4, message: "즉시 조치가 필요함!" },
+            "4151": { category: 4, message: "즉시 조치가 필요함!" },
+            "4152": { category: 4, message: "즉시 조치가 필요함!" },
+            "4153": { category: 4, message: "즉시 조치가 필요함!" },
+            "4161": { category: 4, message: "즉시 조치가 필요함!" },
+            "4162": { category: 4, message: "즉시 조치가 필요함!" },
+            "4163": { category: 4, message: "즉시 조치가 필요함!" },
+            "4171": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4172": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4173": { category: 4, message: "즉시 조치가 필요함!" },
+
+            "4211": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4212": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4213": { category: 4, message: "즉시 조치가 필요함!" },
+            "4221": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4222": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4223": { category: 4, message: "즉시 조치가 필요함!" },
+            "4231": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4232": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4233": { category: 4, message: "즉시 조치가 필요함!" },
+            "4241": { category: 4, message: "즉시 조치가 필요함!" },
+            "4242": { category: 4, message: "즉시 조치가 필요함!" },
+            "4243": { category: 4, message: "즉시 조치가 필요함!" },
+            "4251": { category: 4, message: "즉시 조치가 필요함!" },
+            "4252": { category: 4, message: "즉시 조치가 필요함!" },
+            "4253": { category: 4, message: "즉시 조치가 필요함!" },
+            "4261": { category: 4, message: "즉시 조치가 필요함!" },
+            "4262": { category: 4, message: "즉시 조치가 필요함!" },
+            "4263": { category: 4, message: "즉시 조치가 필요함!" },
+            "4271": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4272": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4273": { category: 4, message: "즉시 조치가 필요함!" },
+
+            "4311": { category: 4, message: "즉시 조치가 필요함!" },
+            "4312": { category: 4, message: "즉시 조치가 필요함!" },
+            "4313": { category: 4, message: "즉시 조치가 필요함!" },
+            "4321": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4322": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4323": { category: 4, message: "즉시 조치가 필요함!" },
+            "4331": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4332": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4333": { category: 4, message: "즉시 조치가 필요함!" },
+            "4341": { category: 4, message: "즉시 조치가 필요함!" },
+            "4342": { category: 4, message: "즉시 조치가 필요함!" },
+            "4343": { category: 4, message: "즉시 조치가 필요함!" },
+            "4351": { category: 4, message: "즉시 조치가 필요함!" },
+            "4352": { category: 4, message: "즉시 조치가 필요함!" },
+            "4353": { category: 4, message: "즉시 조치가 필요함!" },
+            "4361": { category: 4, message: "즉시 조치가 필요함!" },
+            "4362": { category: 4, message: "즉시 조치가 필요함!" },
+            "4363": { category: 4, message: "즉시 조치가 필요함!" },
+            "4371": { category: 2, message: "가까운 시일 내에 조치가 필요함." },
+            "4372": { category: 3, message: "가능한 한 빨리 조치가 필요함." },
+            "4373": { category: 4, message: "즉시 조치가 필요함!" },
+
+            // 기본값 또는 찾을 수 없는 코드 처리 (예시)
+            "default": { category: 1, message: "선택된 코드 조합에 대한 데이터가 없습니다. 기본값(AC1)으로 표시됩니다." }
+        };
+
+        // OWAS 리스트 박스 문구 (OWAS.html에서 가져온 내용 기반으로 재구성)
+        const owasDescriptions = {
+            '허리': {
+                1: '1: 똑바로 폄',
+                2: '2: 구부림 (20˚ 이상)',
+                3: '3: 비틀림 (20˚ 이상)',
+                4: '4: 구부리고 비틀림 (20˚ 초과)'
+            },
+            '상지': {
+                1: '1: 양팔 어깨 아래',
+                2: '2: 한 팔 어깨 높이 위',
+                3: '3: 양팔 어깨 높이 위'
+            },
+            '하지': {
+                1: '1: 앉음 (의자)',
+                2: '2: 똑바로 섬 (양 발에 무게 중심)',
+                3: '3: 짝다리로 바로 섬 (한쪽 발에 무게 중심, 짝다리)',
+                4: '4: 무릎 구부리고 섬 (양 발에 무게 중심)',
+                5: '5: 짝다리로 무릎 구부리고 섬 (한쪽 발에 무게 중심)',
+                6: '6: 쪼그려 앉음, 무릎 꿇음',
+                7: '7: 걷거나 이동 (보행)'
+            },
+            '무게': {
+                1: '1: 10kg 미만',
+                2: '2: 10kg~20kg 미만',
+                3: '3: 20kg 이상'
+            }
+        };
+
+        // DOMContentLoaded 이벤트는 HTML 문서가 완전히 로드되고 파싱되었을 때 발생합니다.
+        document.addEventListener('DOMContentLoaded', () => {
+            const imageGalleryContainer = document.getElementById('imageGalleryContainer');
+
+            // 각 카테고리 제목 요소의 참조를 저장할 객체
+            const categoryTitleElements = {};
+            // 각 카테고리 선택 순서 표시 요소의 참조를 저장할 객체
+            const categorySelectionDisplays = {}; // 이제 여기에 설명 텍스트를 저장할 것임
+            // 각 카테고리에서 현재 선택된 이미지 요소를 저장할 객체 (테두리 제거용)
+            const selectedImageElements = {};
+
+            // OWAS 계산을 위한 현재 선택 값 저장
+            const selectedOWASValues = {
+                '허리': null,
+                '상지': null,
+                '하지': null,
+                '무게': null
+            };
+
+            // OWAS 평가 결과 표시 요소들
+            const owasResultDisplay = document.getElementById('owasResultDisplay');
+            const owasCodeValueSpan = document.getElementById('owasCodeValue');
+            const actionCategoryValueSpan = document.getElementById('actionCategoryValue');
+            const actionMessageValueSpan = document.getElementById('actionMessageValue');
+
+            // 'images' 폴더에 있다고 가정하는 실제 요소 파일명 목록입니다.
+            const imageCategories = {
+                '허리': { prefix: 'B', count: 4 },
+                '상지': { prefix: 'U', count: 3 },
+                '하지': { prefix: 'L', count: 7 },
+                '무게': { prefix: 'W', count: 3 }
+            };
+
+            // OWAS AC 값을 계산하고 표시하는 함수
+            function calculateOWAS() {
+                const backValue = selectedOWASValues['허리'];
+                const armsValue = selectedOWASValues['상지'];
+                const legsValue = selectedOWASValues['하지'];
+                const loadValue = selectedOWASValues['무게'];
+
+                // 모든 카테고리 값이 선택되었는지 확인
+                if (backValue !== null && armsValue !== null && legsValue !== null && loadValue !== null) {
+                    const owasCode = `${backValue}${armsValue}${legsValue}${loadValue}`;
+                    let resultData = owasActionCategories[owasCode];
+
+                    // OWAS 테이블에 없는 코드에 대한 처리
+                    if (!resultData) {
+                        console.warn(`OWAS 코드 '${owasCode}'에 대한 정의된 Action Category가 없습니다. 임의 값을 사용합니다.`);
+                        let calculatedAC = 2; // 기본적으로 약간의 위험으로 간주
+                        if (backValue === 4 || loadValue === 3) calculatedAC = 4; // 등 4 또는 하중 3은 보통 위험 높음
+                        else if (backValue === 2 || backValue === 3 || armsValue === 3 || legsValue === 4 || legsValue === 5 || legsValue === 6 || loadValue === 2) calculatedAC = 3; // 중간 위험 요소
+
+                        // OWAS.html의 actionMessages가 없으므로 직접 메시지 정의
+                        const actionMessages = {
+                            1: "조치가 필요하지 않음 (자세는 정상적임).",
+                            2: "가까운 시일 내에 조치가 필요함.",
+                            3: "가능한 한 빨리 조치가 필요함.",
+                            4: "즉시 조치가 필요함!"
+                        };
+                        resultData = { category: calculatedAC, message: actionMessages[calculatedAC] || "정의되지 않은 위험 등급" };
+                    }
+
+                    // 결과 표시 영역 업데이트
+                    owasCodeValueSpan.textContent = owasCode;
+                    actionCategoryValueSpan.textContent = `AC ${resultData.category}`;
+                    actionMessageValueSpan.textContent = resultData.message;
+
+                    // 위험 등급별 스타일 적용
+                    actionCategoryValueSpan.classList.remove("ac1", "ac2", "ac3", "ac4");
+                    actionCategoryValueSpan.classList.add(`ac${resultData.category}`);
+                    actionMessageValueSpan.className = ''; // 이전 클래스 제거
+                    actionMessageValueSpan.classList.add(`ac${resultData.category}`);
+
+                    owasResultDisplay.style.display = 'block'; // 결과 영역 보이기
+                } else {
+                    // 모든 값이 선택되지 않았다면 결과 영역 숨기기 또는 메시지 표시
+                    owasResultDisplay.style.display = 'none';
+                    owasCodeValueSpan.textContent = '';
+                    actionCategoryValueSpan.textContent = '모든 카테고리를 선택해주세요.';
+                    actionMessageValueSpan.textContent = '';
+                }
+            }
+
+            // 각 카테고리에 대해 섹션을 생성하고 요소를 추가합니다.
+            for (const categoryName in imageCategories) {
+                const categoryData = imageCategories[categoryName];
+                const prefix = categoryData.prefix;
+                const count = categoryData.count;
+
+                // 1. 카테고리 섹션 컨테이너 생성 (스타일 제거)
+                const categorySection = document.createElement('div');
+                categorySection.classList.add(
+                    'mb-2', /* 섹션 간 여백 조정 (mb-4 -> mb-2) */
+                    'flex',
+                    'items-start',
+                    'gap-6'
+                );
+
+                // 2. 항목명과 선택된 항목 설명을 담을 왼쪽 컬럼 생성
+                const leftColumn = document.createElement('div');
+                leftColumn.classList.add(
+                    'flex',
+                    'flex-col',
+                    'items-center',
+                    'w-56',       /* 너비를 w-48 (192px) -> w-56 (224px)로 늘려 설명 텍스트 공간 확보 */
+                    'pr-4',
+                    'flex-shrink-0'
+                );
+
+                // 2-1. 카테고리 제목 생성
+                const categoryTitle = document.createElement('h2');
+                categoryTitle.classList.add(
+                    'text-2xl',
+                    'font-semibold',
+                    'text-gray-700',
+                    'mb-2',
+                    'border-b-2',
+                    'border-indigo-300',
+                    'pb-2',
+                    'w-full',
+                    'text-center'
+                );
+                categoryTitle.textContent = `${categoryName}`;
+                leftColumn.appendChild(categoryTitle);
+
+                // 해당 카테고리 제목 요소의 참조를 저장
+                categoryTitleElements[categoryName] = categoryTitle;
+
+                // 2-2. 선택된 항목의 설명을 표시할 새로운 요소 생성 (항목명 아래쪽에 표시)
+                const selectionDescriptionDiv = document.createElement('div');
+                selectionDescriptionDiv.classList.add(
+                    'selected-description-display', /* 새로운 CSS 클래스 적용 */
+                    'text-center',
+                    'w-full'
+                );
+                selectionDescriptionDiv.textContent = '선택해주세요'; // 초기 메시지
+                leftColumn.appendChild(selectionDescriptionDiv);
+                // 선택 설명 표시 요소의 참조를 저장
+                categorySelectionDisplays[categoryName] = selectionDescriptionDiv;
+
+                // 왼쪽 컬럼을 카테고리 섹션에 추가
+                categorySection.appendChild(leftColumn);
+
+                // 3. 이미지 그리드를 담을 오른쪽 컨테이너 생성
+                const categoryImageGrid = document.createElement('div');
+                categoryImageGrid.classList.add(
+    'flex-grow',
+    'grid',
+    'gap-0',
+    'justify-items-center'
+);
+categoryImageGrid.style.gridTemplateColumns = `repeat(${count}, 1fr)`;                categorySection.appendChild(categoryImageGrid);
+
+                // 4. 해당 카테고리의 요소들을 생성하고 그리드에 추가
+                for (let i = 1; i <= count; i++) {
+                    const fileName = `${prefix}${i}.png`;
+
+                    const cellWrapper = document.createElement('div');
+                    cellWrapper.classList.add('flex', 'flex-col', 'items-center', 'w-full');
+
+                    // 이미지와 설명을 감싸는 컨테이너
+                    const imageContainer = document.createElement('div');
+                    imageContainer.classList.add(
+                        'image-container', // 커스텀 CSS 클래스
+                        'w-full'          // 그리드 셀의 전체 너비 사용
+                    );
+
+                    const imgElement = document.createElement('img');
+                    imgElement.src = `images/${fileName}`; // 실제 이미지 로드 시도
+
+                    // 요소 로드 실패 시 대체 텍스트와 플레이스홀더를 설정합니다.
+                    imgElement.alt = `${categoryName} ${i}: ${fileName}`;
+                    imgElement.onerror = function () {
+                        console.error(`요소를 로드할 수 없습니다: images/${fileName}`);
+                        this.src = `https://placehold.co/300x200/EF4444/FFFFFF?text=Load+Error`;
+                        this.alt = `요소를 로드할 수 없습니다: ${fileName}`;
+                    };
+
+                    imageContainer.appendChild(imgElement); // 이미지 추가
+
+                    // 요소 클릭 이벤트 리스너 추가
+                    imageContainer.addEventListener('click', () => {
+                        // 이전에 선택된 이미지가 있다면 테두리 제거
+                        if (selectedImageElements[categoryName]) {
+                            selectedImageElements[categoryName].classList.remove('selected-image');
+                        }
+
+                        // 현재 클릭된 이미지에 테두리 추가
+                        imageContainer.classList.add('selected-image');
+                        // 현재 선택된 이미지 요소 저장
+                        selectedImageElements[categoryName] = imageContainer;
+
+                        // 해당 카테고리의 선택 설명 표시 요소 가져오기
+                        const displayElement = categorySelectionDisplays[categoryName];
+                        // 선택 설명 표시 요소의 텍스트를 현재 요소의 설명으로 업데이트
+                        displayElement.textContent = owasDescriptions[categoryName][i];
+
+                        // 선택된 OWAS 값 업데이트
+                        selectedOWASValues[categoryName] = i;
+
+                        // OWAS AC 값 계산 및 표시
+                        calculateOWAS();
+                    });
+
+                    cellWrapper.appendChild(imageContainer);
+                    
+                    if (categoryName === '무게') {
+                        const textLabel = document.createElement('div');
+                        // 텍스트 스타일 지정 (작은 글씨, 회색, 중앙 정렬, 상단 여백)
+                        textLabel.classList.add('text-xs', 'text-gray-600', 'mt-2', 'text-center', 'font-medium');
+                        // owasDescriptions에서 텍스트 가져오기 (예: "1: 10kg 미만")
+                        textLabel.textContent = owasDescriptions[categoryName][i];
+
+                        cellWrapper.appendChild(textLabel);
+                    }
+
+                    categoryImageGrid.appendChild(cellWrapper);
+                }
+
+                // 5. 완성된 카테고리 섹션을 메인 갤러리 컨테이너에 추가
+                imageGalleryContainer.appendChild(categorySection);
+            }
+        });
+    </script>
+</body>
+
+</html>
